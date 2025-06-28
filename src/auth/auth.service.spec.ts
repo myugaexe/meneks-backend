@@ -1,10 +1,32 @@
 import { AuthService } from './auth.service';
+import * as bcrypt from 'bcrypt';
 
-describe('AuthService simple test', () => {
+jest.mock('@supabase/supabase-js', () => {
+  return {
+    createClient: jest.fn(() => ({
+      from: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      select: jest.fn().mockResolvedValue({ data: [{ id: '123', email: 'test@example.com', name: 'Test' }], error: null }),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({
+        data: {
+          id: '123',
+          email: 'test@example.com',
+          password: bcrypt.hashSync('password123', 10),
+          role: 'user'
+        },
+        error: null,
+      }),
+    })),
+  };
+});
+
+// test AuthService 
+
+describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    // cukup buat instance manual, tidak perlu TestingModule
     service = new AuthService();
   });
 
@@ -12,12 +34,61 @@ describe('AuthService simple test', () => {
     expect(service).toBeDefined();
   });
 
-  // contoh hanya validasi hash password
-  it('should hash password correctly (simplified)', async () => {
-    const bcrypt = require('bcrypt');
-    const plain = 'password123';
-    const hashed = await bcrypt.hash(plain, 10);
-    const match = await bcrypt.compare(plain, hashed);
-    expect(match).toBe(true);
+  // test SIGN UP
+
+  describe('signup', () => {
+    it('should signup a new user', async () => {
+      const result = await service.signup('Test', 'test@example.com', 'password123');
+      expect(result).toHaveProperty('id');
+      expect(result.email).toBe('test@example.com');
+    });
+
+    it('should throw error if insert fails', async () => {
+      // paksa error mock
+      const spy = jest.spyOn(service['supabase'], 'select').mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Insert failed' },
+      });
+
+      await expect(service.signup('Test', 'test@example.com', 'password123')).rejects.toThrow('Insert failed');
+
+      spy.mockRestore();
+    });
+  });
+
+  // test SIGN IN
+  describe('signin', () => {
+  it('should signin a user with correct credentials', async () => {
+  const fakeUser = {
+    id: 1,
+    email: 'test@example.com',
+    password: bcrypt.hashSync('password123', 10),
+    role: 'user',
+  };
+
+  // Mock supabase chain: from().select().eq().single()
+  const spy = jest
+    .spyOn(service['supabase'], 'from')
+    .mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({
+            data: fakeUser,
+            error: null,
+          }),
+        }),
+      }),
+    } as any); // gunakan `as any` untuk melewati TypeScript strict typing
+
+  const result = await service.signin('test@example.com', 'password123');
+  expect(result).toEqual({
+    id: 1,
+    email: 'test@example.com',
+    role: 'user',
+  });
+
+  spy.mockRestore();
+});
+
   });
 });
