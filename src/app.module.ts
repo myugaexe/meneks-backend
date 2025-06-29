@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module'
 import { PembinaModule } from './pembina/pembina.module'
 import { EkstraModule } from './ekstra/ekstra.module' 
 import { SiswaModule } from './siswa/siswa.module'
+import { EditEkstraModule } from './editEkstra/edit-ekstra.module'
 
 @Module({
   imports: [
@@ -13,7 +14,8 @@ import { SiswaModule } from './siswa/siswa.module'
     AuthModule,
     PembinaModule,
     EkstraModule,
-    SiswaModule 
+    SiswaModule,
+    EditEkstraModule 
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -36,7 +36,7 @@ export class CreateEkstraDto {
   registrationEnd: string
 
   @IsInt()
-  pembinaId: number // 👈 tambahkan ini
+  pembinaId: number 
 
   @IsArray()
   @ValidateNested({ each: true })
