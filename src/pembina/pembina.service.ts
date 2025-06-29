@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createClient } from '@supabase/supabase-js';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Injectable()
 export class PembinaService {
