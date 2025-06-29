@@ -13,7 +13,7 @@ export class AuthService {
     );
   }
 // SIGNUP LOGIC
-async signup(nomorInduk: number, name: string, email: string, password: string) {
+async signup(nomorInduk: string, name: string, email: string, password: string) {
   // Validasi panjang nomorInduk harus tepat 7 digit
   if (!/^\d{7}$/.test(nomorInduk.toString())) {
     throw new Error('Invalid Identification number');
