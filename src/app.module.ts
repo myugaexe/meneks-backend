@@ -5,13 +5,15 @@ import { AppService } from './app.service'
 import { AuthModule } from './auth/auth.module'
 import { PembinaModule } from './pembina/pembina.module'
 import { EkstraModule } from './ekstra/ekstra.module' 
+import { SiswaModule } from './siswa/siswa.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), 
     AuthModule,
     PembinaModule,
-    EkstraModule, 
+    EkstraModule,
+    SiswaModule 
   ],
   controllers: [AppController],
   providers: [AppService],
