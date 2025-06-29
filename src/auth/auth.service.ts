@@ -12,27 +12,33 @@ export class AuthService {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
   }
+// SIGNUP LOGIC
+async signup(nomorInduk: number, name: string, email: string, password: string) {
+  // Validasi panjang nomorInduk harus tepat 7 digit
+  if (!/^\d{7}$/.test(nomorInduk.toString())) {
+    throw new Error('Invalid Identification number');
+  }
 
-  // SIGNUP LOGIC
-  async signup(name: string, email:string, password: string) {
-    const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { data, error } = await this.supabase
+  const { data, error } = await this.supabase
     .from('users')
     .insert([
       {
+        nomorInduk,
         name,
-        email,  
+        email,
         password: hashedPassword,
-        role: 'user',
+        role: 'siswa',
       },
     ])
     .select();
 
-    if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message);
 
-    return data[0];
-  }
+  return data[0];
+}
+
 
   // SIGNIN LOGIC
   async signin(email: string, password: string) {

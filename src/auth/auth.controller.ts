@@ -8,8 +8,8 @@ export class AuthController {
   @Post('signup')
   signup(@Body() body: any) {
     console.log('>>> SIGNUP request', body);
-    const { name, email, password } = body;
-    return this.authService.signup(name, email, password);
+    const { nomorInduk ,name, email, password } = body;
+    return this.authService.signup(nomorInduk, name, email, password);
   }
 
   @Post('signin')

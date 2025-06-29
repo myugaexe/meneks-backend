@@ -38,7 +38,7 @@ describe('AuthService', () => {
 
   describe('signup', () => {
     it('should signup a new user', async () => {
-      const result = await service.signup('Test', 'test@example.com', 'password123');
+      const result = await service.signup(1234567,'Test', 'test@example.com', 'password123');
       expect(result).toHaveProperty('id');
       expect(result.email).toBe('test@example.com');
     });
@@ -50,7 +50,7 @@ describe('AuthService', () => {
         error: { message: 'Insert failed' },
       });
 
-      await expect(service.signup('Test', 'test@example.com', 'password123')).rejects.toThrow('Insert failed');
+      await expect(service.signup(1234567, 'Test', 'test@example.com', 'password123')).rejects.toThrow('Insert failed');
 
       spy.mockRestore();
     });
