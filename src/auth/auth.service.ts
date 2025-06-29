@@ -1,46 +1,56 @@
 import { Injectable } from '@nestjs/common';
 import { createClient } from '@supabase/supabase-js';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
   private supabase;
 
-  constructor() {
+  constructor(private readonly jwtService: JwtService) {
     this.supabase = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
   }
-// SIGNUP LOGIC
-async signup(nomorInduk: string, name: string, email: string, password: string) {
-  // Validasi panjang nomorInduk harus tepat 7 digit
-  if (!/^\d{7}$/.test(nomorInduk.toString())) {
-    throw new Error('Invalid Identification number');
+
+  // SIGNUP
+  async signup(nomorInduk: string, name: string, email: string, password: string) {
+    if (!/^\d{7}$/.test(nomorInduk.toString())) {
+      throw new Error('Invalid Identification number');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const { data, error } = await this.supabase
+      .from('users')
+      .insert([
+        {
+          nomorInduk,
+          name,
+          email,
+          password: hashedPassword,
+          role: 'siswa',
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    // setelah signup langsung buatin JWT
+    const payload = {
+      sub: data.id,
+      email: data.email,
+      role: data.role,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const { data, error } = await this.supabase
-    .from('users')
-    .insert([
-      {
-        nomorInduk,
-        name,
-        email,
-        password: hashedPassword,
-        role: 'siswa',
-      },
-    ])
-    .select();
-
-  if (error) throw new Error(error.message);
-
-  return data[0];
-}
-
-
-  // SIGNIN LOGIC
+  // SIGNIN
   async signin(email: string, password: string) {
     const { data, error } = await this.supabase
       .from('users')
@@ -48,16 +58,20 @@ async signup(nomorInduk: string, name: string, email: string, password: string) 
       .eq('email', email)
       .single();
 
-    // Check if user exists
     if (error || !data) throw new Error('Invalid credentials');
-    // Check if password matches
+
     const passwordMatch = await bcrypt.compare(password, data.password);
     if (!passwordMatch) throw new Error('Wrong password');
 
-    return {
-      id: data.id,
+    // buat token
+    const payload = {
+      sub: data.id,
       email: data.email,
       role: data.role,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
     };
   }
 }
