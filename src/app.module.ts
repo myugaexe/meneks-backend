@@ -7,6 +7,8 @@ import { PembinaModule } from './pembina/pembina.module'
 import { EkstraModule } from './ekstra/ekstra.module' 
 import { SiswaModule } from './siswa/siswa.module'
 import { EditEkstraModule } from './editEkstra/edit-ekstra.module'
+import { PendaftaranModule } from './pendaftaran/pendaftaran.module'
+import { FormPendaftaranModule } from './formPendaftaran/formPendaftaran.module'
 
 @Module({
   imports: [
@@ -15,7 +17,9 @@ import { EditEkstraModule } from './editEkstra/edit-ekstra.module'
     PembinaModule,
     EkstraModule,
     SiswaModule,
-    EditEkstraModule 
+    EditEkstraModule,
+    PendaftaranModule,
+    FormPendaftaranModule 
   ],
   controllers: [AppController],
   providers: [AppService],
