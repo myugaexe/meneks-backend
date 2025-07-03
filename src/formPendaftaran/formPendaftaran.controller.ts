@@ -6,10 +6,10 @@ import { FormPendaftaranService } from './formPendaftaran.service';
 export class FormPendaftaranController {
   constructor(private readonly formPendaftaranService: FormPendaftaranService) {}
 
-  @Get(':ekskulId')
+  @Get(':ekskulId/:userId')
   async getFormPendaftaran(
     @Param('ekskulId') ekskulId: string,
-    @Query('userId') userId: string,
+    @Param('userId') userId: string,
   ) {
     return this.formPendaftaranService.getFormPendaftaranByEkskulId(
       Number(ekskulId),
