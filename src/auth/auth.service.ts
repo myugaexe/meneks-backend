@@ -14,9 +14,7 @@ export class AuthService {
     );
   }
   
-  // SIGNUP LOGIC
   async signup(nomorInduk: string, name: string, email: string, password: string) {
-    // Validasi panjang nomorInduk harus tepat 7 digit
     if (!/^\d{7}$/.test(nomorInduk.toString())) {
       throw new Error('Invalid Identification number');
     }
@@ -39,7 +37,6 @@ export class AuthService {
 
     if (error || !data) throw new Error(error.message);
 
-    // Buat token langsung supaya user tidak perlu login ulang
     const payload = {
       sub: data.id,
       email: data.email,
@@ -58,7 +55,6 @@ export class AuthService {
     };
   }
 
-  // SIGNIN LOGIC
   async signin(email: string, password: string) {
   const { data, error } = await this.supabase
     .from('users')
@@ -71,7 +67,6 @@ export class AuthService {
     const passwordMatch = await bcrypt.compare(password, data.password);
     if (!passwordMatch) throw new Error('Wrong password');
 
-    // buat token
     const payload = {
       sub: data.id,
       email: data.email,

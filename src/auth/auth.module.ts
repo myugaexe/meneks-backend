@@ -8,7 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // Membuat .env tersedia di seluruh aplikasi
+      isGlobal: true, 
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,4 +24,3 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   exports: [AuthService],
 })
 export class AuthModule {}
-// This module handles authentication, including JWT strategy and service.
