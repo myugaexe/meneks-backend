@@ -22,7 +22,7 @@ export class SiswaService {
 
     if (userError) throw new Error(`User fetch error: ${userError.message}`);
 
-    // 2. Get all extracurriculars with schedule
+    // 2. Get all extracurriculars with schedule AND supervisor/users data
     const { data: allExtracurriculars, error: ekskulError } = await this.supabase
       .from('ekstra')
       .select(`
@@ -31,6 +31,10 @@ export class SiswaService {
           hari,
           waktuMulai,
           waktuSelesai
+        ),
+        pembina:users ( 
+          id,
+          name 
         )
       `);
 
@@ -49,6 +53,10 @@ export class SiswaService {
             hari,
             waktuMulai,
             waktuSelesai
+          ),
+          pembina:users ( 
+            id,
+            name
           )
         )
       `)
