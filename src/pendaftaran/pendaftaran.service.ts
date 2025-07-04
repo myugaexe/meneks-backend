@@ -16,7 +16,7 @@ export class PendaftaranService {
   }
 
   async create(dto: CreatePendaftaranDto) {
-    // 1. Periksa apakah siswa sudah terdaftar di ekstrakurikuler ini
+    // 1. Periksa apakah siswa sudah terdaftar di ekstrakurikuler ini (Business Rule)
     const { data: existing, error: fetchError } = await this.supabase
       .from('pendaftaran')
       .select('*')
@@ -25,7 +25,6 @@ export class PendaftaranService {
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 berarti tidak ada data ditemukan, itu normal.
       throw new BadRequestException(fetchError.message);
     }
 
@@ -36,7 +35,7 @@ export class PendaftaranService {
     // 2. Periksa jumlah ekstrakurikuler yang sudah didaftarkan siswa
     const { count: registeredCount, error: countError } = await this.supabase
       .from('pendaftaran')
-      .select('id', { count: 'exact' }) // Menggunakan count: 'exact' untuk mendapatkan jumlah total baris
+      .select('id', { count: 'exact' })
       .eq('siswa_id', dto.siswa_id);
 
     if (countError) {
@@ -49,7 +48,41 @@ export class PendaftaranService {
       );
     }
 
-    // 3. Lanjutkan pendaftaran jika semua aturan bisnis terpenuhi
+    // 3. Ambil data periode dan kapasitas ekstrakurikuler yang akan didaftarkan
+    const { data: ekskul, error: ekskulError } = await this.supabase
+      .from('ekstra')
+      .select('periode_start, periode_end, maxAnggota, JumlahAnggota')
+      .eq('id', dto.eksul_id)
+      .single();
+
+    if (ekskulError) {
+      throw new BadRequestException(`Gagal mengambil data ekstrakurikuler: ${ekskulError.message}`);
+    }
+
+    if (
+      !ekskul ||
+      !ekskul.periode_start ||
+      !ekskul.periode_end ||
+      ekskul.maxAnggota === undefined ||
+      ekskul.JumlahAnggota === undefined
+    ) {
+      throw new BadRequestException('Data ekstrakurikuler tidak lengkap.');
+    }
+
+    // 4. Validasi apakah periode sudah berakhir (Business Rule)
+    const today = new Date();
+    const periodeEnd = new Date(ekskul.periode_end);
+
+    if (today > periodeEnd) {
+      throw new BadRequestException('Pendaftaran sudah ditutup karena periode sudah berakhir.');
+    }
+
+    // 5. Validasi apakah kuota sudah penuh (Business Rule)
+    if (ekskul.JumlahAnggota >= ekskul.maxAnggota) {
+      throw new BadRequestException('Kuota ekstrakurikuler sudah penuh.');
+    }
+
+    // 6. Lanjutkan pendaftaran
     const { data, error } = await this.supabase
       .from('pendaftaran')
       .insert([
@@ -57,7 +90,10 @@ export class PendaftaranService {
           siswa_id: dto.siswa_id,
           eksul_id: dto.eksul_id,
           status: 'aktif',
-          register_at: new Date().toISOString().split('T')[0] + 'T' + new Date().toISOString().split('T')[1].replace('Z', ''), // Format ISO string tanpa 'Z'
+          register_at:
+            new Date().toISOString().split('T')[0] +
+            'T' +
+            new Date().toISOString().split('T')[1].replace('Z', ''),
         },
       ])
       .select()
