@@ -43,8 +43,7 @@ export class FormPendaftaranService {
 
     return data;
   }
-
-  // 🎯 Fungsi baru: Mengambil profil dan detail ekskul sekaligus
+  
   async getFormPendaftaranByEkskulId(ekskulId: number, userId: number) {
     // Ambil data ekskul
     const { data: ekstrakurikuler, error: ekskulError } = await this.supabase
