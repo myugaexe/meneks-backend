@@ -5,13 +5,26 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Mock SupabaseClient secara global
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn(),
-    })),
+    from: jest.fn(), // from akan di-mock secara dinamis di beforeEach atau dalam setiap tes
   })),
 }));
+
+// Mock process.env
+const mockProcessEnv = {
+  SUPABASE_URL: 'http://mock.supabase.url',
+  SUPABASE_SERVICE_ROLE_KEY: 'mock-key',
+};
+
+// Mock the global process object
+const OLD_ENV = process.env;
+beforeEach(() => {
+  jest.resetModules(); // This is important to clear the cache of `process.env`
+  process.env = { ...OLD_ENV, ...mockProcessEnv };
+});
+
+afterAll(() => {
+  process.env = OLD_ENV; // Restore old env
+});
 
 describe('PembinaService', () => {
   let service: PembinaService;
@@ -36,9 +49,10 @@ describe('PembinaService', () => {
     const mockUserId = 'pembina123'; // Menggunakan string karena userId di PembinaService adalah string
 
     it('should return dashboard data for a supervisor successfully', async () => {
-      // Mocking user data
+      // Mocking user data and extracurriculars data
       (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
+          // Untuk 'users', kita menggunakan .single()
           return {
             select: jest.fn().mockReturnThis(),
             eq: jest.fn().mockReturnThis(),
@@ -53,27 +67,21 @@ describe('PembinaService', () => {
             }),
           };
         } else if (tableName === 'ekstra') {
-          // Mocking extracurriculars data
+          // Untuk 'ekstra', kita TIDAK menggunakan .single() di service,
+          // jadi select().eq() harus langsung me-resolve promise dengan { data: [], error: null }
           return {
             select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            // Perhatikan bahwa `single()` tidak dipanggil pada kueri `ekstra`
-            // Jadi, `select` langsung mengembalikan data atau error
-            mockResolvedValueOnce: jest.fn().mockResolvedValueOnce({ // Untuk select().eq()
-                data: [
-                  { id: 101, nama: 'Pramuka', pembina_id: mockUserId, jadwal: { hari: 'Senin' } },
-                  { id: 102, nama: 'Robotik', pembina_id: mockUserId, jadwal: { hari: 'Rabu' } },
-                ],
-                error: null,
-              }),
+            eq: jest.fn().mockResolvedValueOnce({ // Perhatikan perubahannya di sini
+              data: [
+                { id: 101, nama: 'Pramuka', pembina_id: mockUserId, jadwal: { hari: 'Senin' } },
+                { id: 102, nama: 'Robotik', pembina_id: mockUserId, jadwal: { hari: 'Rabu' } },
+              ],
+              error: null,
+            }),
           };
         }
-        return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(),
-            mockResolvedValueOnce: jest.fn(), // Fallback untuk method yang mungkin dipanggil
-        };
+        // Fallback jika ada tabel lain yang dipanggil tanpa ekspektasi
+        throw new Error(`Unexpected table name: ${tableName}`);
       });
 
       // Panggil service method
@@ -99,7 +107,6 @@ describe('PembinaService', () => {
     });
 
     it('should throw error if user data fetch fails', async () => {
-      // Mock hanya untuk skenario user fetch gagal
       (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
           return {
@@ -111,7 +118,13 @@ describe('PembinaService', () => {
             }),
           };
         }
-        return { select: jest.fn().mockReturnThis() };
+        // Pastikan mock untuk tabel lain tidak mengganggu jika dipanggil secara tidak sengaja
+        return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            // Tidak perlu single() atau mockResolvedValueOnce di sini jika tidak relevan
+            // Atau, tambahkan throw jika panggilan ke tabel ini tidak diharapkan
+        };
       });
 
       await expect(service.getDashboardData(mockUserId)).rejects.toThrow(
@@ -121,8 +134,6 @@ describe('PembinaService', () => {
     });
 
     it('should throw error if extracurriculars data fetch fails', async () => {
-      // Mocking user data success
-      // Mocking extracurriculars data failure
       (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
           return {
@@ -139,21 +150,16 @@ describe('PembinaService', () => {
             }),
           };
         } else if (tableName === 'ekstra') {
+          // Untuk 'ekstra', langsung mengembalikan error karena tidak ada .single()
           return {
             select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            mockResolvedValueOnce: jest.fn().mockResolvedValueOnce({ // Untuk select().eq()
-                data: null,
-                error: { message: 'Extracurriculars not found' },
+            eq: jest.fn().mockResolvedValueOnce({ // Perhatikan perubahannya di sini
+              data: null,
+              error: { message: 'Extracurriculars not found' },
             }),
           };
         }
-        return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(),
-            mockResolvedValueOnce: jest.fn(),
-        };
+        throw new Error(`Unexpected table name: ${tableName}`);
       });
 
       await expect(service.getDashboardData(mockUserId)).rejects.toThrow(
