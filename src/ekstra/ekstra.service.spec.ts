@@ -1,113 +1,101 @@
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { EkstraService } from './ekstra.service';
-// import { InternalServerErrorException } from '@nestjs/common';
-// import { supabase } from '../supabase/supabase.client';
-// import { CreateEkstraDto } from './dto/create-ekstra.dto';
+// src/ekstra/ekstra.service.spec.ts
 
-// jest.mock('../supabase/supabase.client');
+// 1) Mock chain lengkap
+const mockInsertSelectSingle = jest.fn();
+const mockInsertEkstraSelectSingle = jest.fn();
 
-// describe('EkstraService', () => {
-//   let service: EkstraService;
+const mockSupabase = {
+  from: jest.fn((tableName: string) => ({
+    insert: jest.fn(() => ({
+      select: jest.fn(() => ({
+        single: tableName === 'jadwal' ? mockInsertSelectSingle : mockInsertEkstraSelectSingle,
+      })),
+    })),
+  })),
+};
 
-//   beforeEach(async () => {
-//     const module: TestingModule = await Test.createTestingModule({
-//       providers: [EkstraService],
-//     }).compile();
+// 2) jest.mock harus SEBELUM import lain
+jest.mock('../supabase/supabase.client', () => ({
+  supabase: mockSupabase,
+}));
 
-//     service = module.get<EkstraService>(EkstraService);
-//     jest.clearAllMocks(); // Reset sebelum setiap test
-//   });
+// 3) Import NestJS
+import { Test, TestingModule } from '@nestjs/testing';
+import { EkstraService } from './ekstra.service';
+import { InternalServerErrorException } from '@nestjs/common';
 
-//   const dto: CreateEkstraDto = {
-//     name: 'Futsal',
-//     description: 'Ekstrakurikuler Futsal Sekolah',
-//     registrationStart: '2025-07-01',
-//     registrationEnd: '2025-07-31',
-//     maxMembers: 20,
-//     pembinaId: 11,
-//     schedules: [
-//       {
-//         day: 'Senin',
-//         startTime: '14:00',
-//         endTime: '16:00',
-//       },
-//     ],
-//   };
+describe('EkstraService', () => {
+  let service: EkstraService;
 
-//   it('should create ekstra and jadwal successfully', async () => {
-//     (supabase.from as jest.Mock).mockReturnValueOnce({
-//       insert: jest.fn().mockReturnValueOnce({
-//         select: jest.fn().mockReturnValueOnce({
-//           single: jest.fn().mockResolvedValue({
-//             data: { id: 'jadwal-1' },
-//             error: null,
-//           }),
-//         }),
-//       }),
-//     });
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [EkstraService],
+    }).compile();
 
-//     (supabase.from as jest.Mock).mockReturnValueOnce({
-//       insert: jest.fn().mockReturnValueOnce({
-//         select: jest.fn().mockReturnValueOnce({
-//           single: jest.fn().mockResolvedValue({
-//             data: { id: 'ekstra-1', name: dto.name },
-//             error: null,
-//           }),
-//         }),
-//       }),
-//     });
+    service = module.get<EkstraService>(EkstraService);
+    jest.clearAllMocks();
+  });
 
-//     const result = await service.create(dto);
+  describe('create', () => {
+    const dto = {
+      name: 'Pramuka',
+      description: 'Deskripsi',
+      registrationStart: '2025-01-01',
+      registrationEnd: '2025-02-01',
+      maxMembers: 20,
+      pembinaId: 1,
+      schedules: [
+        {
+          day: 'Senin',
+          startTime: '10:00',
+          endTime: '12:00',
+        },
+      ],
+    };
 
-//     expect(result).toEqual({
-//       message: 'Ekstrakurikuler dan jadwal berhasil dibuat',
-//       jadwal: { id: 'jadwal-1' },
-//       ekstra: { id: 'ekstra-1', name: dto.name },
-//     });
-//   });
+    it('should create jadwal and ekstra successfully', async () => {
+      mockInsertSelectSingle.mockResolvedValueOnce({
+        data: { id: 5 },
+        error: null,
+      });
+      mockInsertEkstraSelectSingle.mockResolvedValueOnce({
+        data: { id: 10 },
+        error: null,
+      });
 
-//   it('should throw error if jadwal insert fails', async () => {
-//     (supabase.from as jest.Mock).mockReturnValueOnce({
-//       insert: jest.fn().mockReturnValueOnce({
-//         select: jest.fn().mockReturnValueOnce({
-//           single: jest.fn().mockResolvedValue({
-//             data: null,
-//             error: { message: 'Jadwal gagal' },
-//           }),
-//         }),
-//       }),
-//     });
+      const result = await service.create(dto);
 
-//     await expect(service.create(dto)).rejects.toThrow(
-//       new InternalServerErrorException('Gagal menyimpan jadwal: Jadwal gagal'),
-//     );
-//   });
+      expect(result).toEqual({
+        message: 'Ekstrakurikuler dan jadwal berhasil dibuat',
+        ekstra: { id: 10 },
+        jadwal: { id: 5 },
+      });
+    });
 
-//   it('should throw error if ekstra insert fails', async () => {
-//     (supabase.from as jest.Mock).mockReturnValueOnce({
-//       insert: jest.fn().mockReturnValueOnce({
-//         select: jest.fn().mockReturnValueOnce({
-//           single: jest.fn().mockResolvedValue({
-//             data: { id: 'jadwal-1' },
-//             error: null,
-//           }),
-//         }),
-//       }),
-//     });
+    it('should throw InternalServerErrorException if insert jadwal fails', async () => {
+      mockInsertSelectSingle.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'DB error jadwal' },
+      });
 
-//     (supabase.from as jest.Mock).mockReturnValueOnce({
-//       insert: jest.fn().mockReturnValueOnce({
-//         select: jest.fn().mockReturnValueOnce({
-//           single: jest.fn().mockResolvedValue({
-//             data: null,
-//             error: { message: 'Ekstra gagal' },
-//           }),
-//         }),
-//       }),
-//     });
+      await expect(service.create(dto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
 
-//     await expect(service.create(dto)).rejects.toThrow(
-//       new InternalServerErrorException('Gagal menyimpan ekstra: Ekstra gagal'),
-//     );
-//   });
-// });
+    it('should throw InternalServerErrorException if insert ekstra fails', async () => {
+      mockInsertSelectSingle.mockResolvedValueOnce({
+        data: { id: 5 },
+        error: null,
+      });
+      mockInsertEkstraSelectSingle.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'DB error ekstra' },
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+});
