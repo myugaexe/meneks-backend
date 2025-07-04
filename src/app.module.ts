@@ -9,6 +9,8 @@ import { SiswaModule } from './siswa/siswa.module'
 import { EditEkstraModule } from './editEkstra/edit-ekstra.module'
 import { PendaftaranModule } from './pendaftaran/pendaftaran.module'
 import { FormPendaftaranModule } from './formPendaftaran/formPendaftaran.module'
+import { PresensiModule } from './presensi/presensi.module'
+import { AnggotaModule } from './anggota/anggota.module'
 
 @Module({
   imports: [
@@ -19,7 +21,9 @@ import { FormPendaftaranModule } from './formPendaftaran/formPendaftaran.module'
     SiswaModule,
     EditEkstraModule,
     PendaftaranModule,
-    FormPendaftaranModule 
+    FormPendaftaranModule,
+    PresensiModule,
+    AnggotaModule
   ],
   controllers: [AppController],
   providers: [AppService],

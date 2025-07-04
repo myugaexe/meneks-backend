@@ -3,7 +3,28 @@ import { CreateEkstraDto } from './dto/create-ekstra.dto'
 import { supabase } from '../supabase/supabase.client'
 
 @Injectable()
-export class EkstraService {
+  export class EkstraService {
+    async findAll() {
+    const { data, error } = await supabase
+      .from('ekstra')
+      .select(`
+        *,
+        jadwal (
+          id,
+          hari,
+          waktuMulai,
+          waktuSelesai
+        )
+      `)
+
+    if (error) {
+      console.error('Gagal ambil daftar ekstra:', error)
+      throw new InternalServerErrorException('Gagal mengambil data ekstrakurikuler: ' + error.message)
+    }
+
+    return data
+  }
+  
   async create(dto: CreateEkstraDto) {    
     const { data: jadwal, error: jadwalError } = await supabase
       .from('jadwal')
@@ -50,5 +71,6 @@ export class EkstraService {
       ekstra,
       jadwal,
     }
+    
   }
 }
