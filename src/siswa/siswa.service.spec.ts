@@ -1,21 +1,95 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SiswaService } from './siswa.service';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Mock SupabaseClient secara global untuk tes ini
+// Mock SupabaseClient secara global
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      single: jest.fn(), // Default mock for single()
-    })),
+    from: jest.fn(), // 'from' akan di-mock secara dinamis di beforeEach atau dalam setiap tes
   })),
 }));
 
+// Mock process.env
+const mockProcessEnv = {
+  SUPABASE_URL: 'http://mock.supabase.url',
+  SUPABASE_SERVICE_ROLE_KEY: 'mock-key',
+};
+
+// Mock the global process object to ensure environment variables are available during service instantiation
+const OLD_ENV = process.env;
+beforeEach(() => {
+  jest.resetModules(); // Ini penting untuk membersihkan cache `process.env`
+  process.env = { ...OLD_ENV, ...mockProcessEnv };
+});
+
+afterAll(() => {
+  process.env = OLD_ENV; // Kembalikan env lama
+});
+
+// Helper untuk membuat rantai mock Supabase Query Builder yang lengkap
+const createSupabaseQueryMock = () => {
+  const mockEq = jest.fn().mockReturnThis();
+  const mockSingle = jest.fn();
+  const mockSelect = jest.fn().mockReturnThis();
+  const mockInsert = jest.fn().mockReturnThis();
+
+  let mockData: any = null;
+  let mockError: any = new Error('Mock not configured properly');
+
+  const updateChainableMethods = () => {
+    // Memastikan setiap pemanggilan single() akan me-resolve nilai yang diatur terakhir kali
+    mockSingle.mockImplementation(() => Promise.resolve({ data: mockData, error: mockError }));
+    // Memastikan .then() (untuk query non-single) juga me-resolve nilai yang diatur terakhir kali
+    chainableMethods.then.mockImplementation((onFulfilled, onRejected) => Promise.resolve({ data: mockData, error: mockError }).then(onFulfilled, onRejected));
+  };
+
+  const chainableMethods = {
+    select: mockSelect,
+    eq: mockEq,
+    insert: mockInsert,
+    single: mockSingle, // single sudah di-mock di `updateChainableMethods`
+    then: jest.fn(), // `then` akan di-mock di `updateChainableMethods`
+  };
+
+  mockSelect.mockImplementation(() => {
+    updateChainableMethods(); // Perbarui resolve/reject setiap kali select dipanggil
+    return chainableMethods;
+  });
+  mockEq.mockImplementation(() => {
+    updateChainableMethods(); // Perbarui resolve/reject setiap kali eq dipanggil
+    return chainableMethods;
+  });
+
+  return {
+    ...chainableMethods,
+    mockEq: mockEq,
+    mockSingle: mockSingle,
+    mockSelectMethod: mockSelect,
+    mockInsertMethod: mockInsert,
+
+    setResolveValue: (data: any) => { 
+        mockData = data;
+        mockError = null;
+        updateChainableMethods();
+    }, 
+    setRejectValue: (error: { message: string } | Error) => { 
+        const errorObject = error instanceof Error ? { message: error.message } : error;
+        mockData = null;
+        mockError = errorObject;
+        updateChainableMethods();
+    },
+    // Method khusus untuk mock .single() yang gagal (jika ingin perilaku berbeda dari setRejectValue)
+    setSingleReject: (error: { message: string } | Error) => {
+        const errorObject = error instanceof Error ? { message: error.message } : error;
+        mockSingle.mockResolvedValueOnce({ data: null, error: errorObject }); 
+    }
+  };
+};
+
+
 describe('SiswaService', () => {
   let service: SiswaService;
-  let supabaseMock: any;
+  let supabaseMock: jest.Mocked<SupabaseClient>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -23,12 +97,8 @@ describe('SiswaService', () => {
     }).compile();
 
     service = module.get<SiswaService>(SiswaService);
-    // Dapatkan instance mock Supabase yang sebenarnya
-    supabaseMock = (createClient as jest.Mock)();
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks(); // Bersihkan mock setelah setiap tes
+    supabaseMock = (createClient as jest.Mock).mock.results[0].value;
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -39,168 +109,125 @@ describe('SiswaService', () => {
     const mockUserId = 1;
 
     it('should return dashboard data successfully', async () => {
-      // Mocking data yang akan dikembalikan oleh Supabase
-      supabaseMock.from.mockReturnValue({
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        single: jest.fn(() => ({
-          data: {
-            id: mockUserId,
-            name: 'John Doe',
-            role: 'siswa',
-            nomorInduk: '12345',
-          },
-          error: null,
-        })),
-      });
+      const mockUserQuery = createSupabaseQueryMock();
+      const mockEkstraQuery = createSupabaseQueryMock();
+      const mockPendaftaranQuery = createSupabaseQueryMock();
 
-      // Mock untuk allExtracurriculars
-      supabaseMock.from.mockImplementation((tableName: string) => {
+      (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(() => ({
-              data: {
-                id: mockUserId,
-                name: 'John Doe',
-                role: 'siswa',
-                nomorInduk: '12345',
-              },
-              error: null,
-            })),
-          };
+          mockUserQuery.setResolveValue({ id: mockUserId, name: 'Siswa A', role: 'siswa', nomorInduk: 'S001' });
+          return mockUserQuery;
         } else if (tableName === 'ekstra') {
-          return {
-            select: jest.fn(() => ({
-              data: [{ id: 101, nama: 'Basket', jadwal: {}, pembina: {} }],
-              error: null,
-            })),
-          };
+          mockEkstraQuery.setResolveValue([
+            { id: 101, nama: 'Pramuka', jadwal: { hari: 'Senin', waktuMulai: '14:00', waktuSelesai: '16:00' }, pembina: { id: 'p1', name: 'Pembina A' } },
+            { id: 102, nama: 'Robotik', jadwal: { hari: 'Rabu', waktuMulai: '15:00', waktuSelesai: '17:00' }, pembina: { id: 'p2', name: 'Pembina B' } },
+          ]);
+          return mockEkstraQuery;
         } else if (tableName === 'pendaftaran') {
-          return {
-            select: jest.fn(() => ({
-              data: [{ id: 201, status: 'aktif', ekstra: { id: 102, nama: 'Futsal' } }],
-              error: null,
-            })),
-            eq: jest.fn().mockReturnThis(),
-          };
+          mockPendaftaranQuery.setResolveValue([
+            { id: 1, status: 'aktif', register_at: '2025-01-15', ekstra: { id: 101, nama: 'Pramuka', jadwal: { hari: 'Senin', waktuMulai: '14:00', waktuSelesai: '16:00' }, pembina: { id: 'p1', name: 'Pembina A' } } },
+          ]);
+          return mockPendaftaranQuery;
         }
-        return { select: jest.fn().mockReturnThis() }; // Fallback
+        return createSupabaseQueryMock(); 
       });
 
       const result = await service.getDashboardData(mockUserId);
 
       expect(result).toBeDefined();
-      expect(result.user).toEqual({
-        id: mockUserId,
-        name: 'John Doe',
-        role: 'siswa',
-        nomorInduk: '12345',
-      });
-      expect(result.allExtracurriculars).toEqual([
-        { id: 101, nama: 'Basket', jadwal: {}, pembina: {} },
-      ]);
-      expect(result.myExtracurriculars).toEqual([
-        { id: 201, status: 'aktif', ekstra: { id: 102, nama: 'Futsal' } },
-      ]);
-      expect(supabaseMock.from).toHaveBeenCalledTimes(3); // users, ekstra, pendaftaran
+      expect(result.user).toEqual({ id: mockUserId, name: 'Siswa A', role: 'siswa', nomorInduk: 'S001' });
+      expect(result.allExtracurriculars).toBeInstanceOf(Array);
+      expect(result.allExtracurriculars).toHaveLength(2);
+      expect(result.myExtracurriculars).toBeInstanceOf(Array);
+      expect(result.myExtracurriculars).toHaveLength(1);
+
+      expect(supabaseMock.from).toHaveBeenCalledTimes(3);
       expect(supabaseMock.from).toHaveBeenCalledWith('users');
       expect(supabaseMock.from).toHaveBeenCalledWith('ekstra');
       expect(supabaseMock.from).toHaveBeenCalledWith('pendaftaran');
+
+      expect(mockUserQuery.mockSelectMethod).toHaveBeenCalledWith('id, name, role, nomorInduk');
+      expect(mockUserQuery.mockEq).toHaveBeenCalledWith('id', mockUserId);
+      expect(mockUserQuery.mockSingle).toHaveBeenCalledTimes(1);
+
+      // Ekspektasi sekarang cocok dengan string yang dinormalisasi di siswa.service.ts
+      expect(mockEkstraQuery.mockSelectMethod).toHaveBeenCalledWith('*, jadwal (hari, waktuMulai, waktuSelesai), pembina:users (id, name)'); 
+      expect(mockEkstraQuery.mockEq).not.toHaveBeenCalled();
+
+      // Ekspektasi sekarang cocok dengan string yang dinormalisasi di siswa.service.ts
+      expect(mockPendaftaranQuery.mockSelectMethod).toHaveBeenCalledWith('id, status, register_at, ekstra (*, jadwal (hari, waktuMulai, waktuSelesai), pembina:users (id, name))');
+      expect(mockPendaftaranQuery.mockEq).toHaveBeenCalledWith('siswa_id', mockUserId);
+      expect(mockPendaftaranQuery.mockSingle).not.toHaveBeenCalled(); 
     });
 
     it('should throw error if user fetch fails', async () => {
-      supabaseMock.from.mockImplementation((tableName: string) => {
+      const mockUserQuery = createSupabaseQueryMock();
+      (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(() => ({
-              data: null,
-              error: { message: 'User not found' },
-            })),
-          };
+          mockUserQuery.setSingleReject({ message: 'User not found' }); 
+          return mockUserQuery;
         }
-        // Fallback for other tables
-        return { select: jest.fn().mockReturnThis() };
+        return createSupabaseQueryMock();
       });
 
       await expect(service.getDashboardData(mockUserId)).rejects.toThrow(
         'User fetch error: User not found',
       );
+      expect(supabaseMock.from).toHaveBeenCalledWith('users');
+      expect(supabaseMock.from).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error if extracurriculars fetch fails', async () => {
-      supabaseMock.from.mockImplementation((tableName: string) => {
+      const mockUserQuery = createSupabaseQueryMock();
+      const mockEkstraQuery = createSupabaseQueryMock();
+
+      (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(() => ({
-              data: {
-                id: mockUserId,
-                name: 'John Doe',
-                role: 'siswa',
-                nomorInduk: '12345',
-              },
-              error: null,
-            })),
-          };
+          mockUserQuery.setResolveValue({ id: mockUserId, name: 'Siswa A', role: 'siswa', nomorInduk: 'S001' });
+          return mockUserQuery;
         } else if (tableName === 'ekstra') {
-          return {
-            select: jest.fn(() => ({
-              data: null,
-              error: { message: 'Ekskul not found' },
-            })),
-          };
+          mockEkstraQuery.setRejectValue(new Error('Ekskul not found')); 
+          return mockEkstraQuery;
         }
-        return { select: jest.fn().mockReturnThis() };
+        return createSupabaseQueryMock(); 
       });
 
       await expect(service.getDashboardData(mockUserId)).rejects.toThrow(
         'Ekskul fetch error: Ekskul not found',
       );
+      expect(supabaseMock.from).toHaveBeenCalledWith('users');
+      expect(supabaseMock.from).toHaveBeenCalledWith('ekstra');
+      expect(supabaseMock.from).toHaveBeenCalledTimes(2);
     });
 
     it('should throw error if registrations fetch fails', async () => {
-      supabaseMock.from.mockImplementation((tableName: string) => {
+      const mockUserQuery = createSupabaseQueryMock();
+      const mockEkstraQuery = createSupabaseQueryMock();
+      const mockPendaftaranQuery = createSupabaseQueryMock();
+
+      (supabaseMock.from as jest.Mock).mockImplementation((tableName: string) => {
         if (tableName === 'users') {
-          return {
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn(() => ({
-              data: {
-                id: mockUserId,
-                name: 'John Doe',
-                role: 'siswa',
-                nomorInduk: '12345',
-              },
-              error: null,
-            })),
-          };
+          mockUserQuery.setResolveValue({ id: mockUserId, name: 'Siswa A', role: 'siswa', nomorInduk: 'S001' });
+          return mockUserQuery;
         } else if (tableName === 'ekstra') {
-          return {
-            select: jest.fn(() => ({
-              data: [{ id: 101, nama: 'Basket', jadwal: {}, pembina: {} }],
-              error: null,
-            })),
-          };
+          mockEkstraQuery.setResolveValue([
+            { id: 101, nama: 'Pramuka', jadwal: { hari: 'Senin' }, pembina: { id: 'p1', name: 'Pembina A' } },
+          ]);
+          return mockEkstraQuery;
         } else if (tableName === 'pendaftaran') {
-          return {
-            select: jest.fn(() => ({
-              data: null,
-              error: { message: 'Daftar not found' },
-            })),
-            eq: jest.fn().mockReturnThis(),
-          };
+          mockPendaftaranQuery.setRejectValue(new Error('Daftar not found')); 
+          return mockPendaftaranQuery;
         }
-        return { select: jest.fn().mockReturnThis() };
+        return createSupabaseQueryMock();
       });
 
       await expect(service.getDashboardData(mockUserId)).rejects.toThrow(
         'Daftar fetch error: Daftar not found',
       );
+      expect(supabaseMock.from).toHaveBeenCalledWith('users');
+      expect(supabaseMock.from).toHaveBeenCalledWith('ekstra');
+      expect(supabaseMock.from).toHaveBeenCalledWith('pendaftaran');
+      expect(supabaseMock.from).toHaveBeenCalledTimes(3);
     });
   });
 });
