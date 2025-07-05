@@ -90,7 +90,7 @@ export class PendaftaranService {
           siswa_id: dto.siswa_id,
           eksul_id: dto.eksul_id,
           status: 'aktif',
-          register_at: new Date().toISOString(), // <--- PERBAIKAN DI SINI!
+          register_at: new Date().toTimeString().split(' ')[0], // <--- PERBAIKAN DI SINI!
         },
       ])
       .select()
