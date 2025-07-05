@@ -71,7 +71,7 @@ export class PendaftaranService {
 
     // 4. Validasi apakah periode sudah berakhir (Business Rule)
     const today = new Date();
-    const periodeEnd = new Date(ekskul.periode_end);
+    const periodeEnd = new Date(ekskul.periode_end); // Ini akan bekerja dengan baik karena Supabase mengirimkan format ISO
 
     if (today > periodeEnd) {
       throw new BadRequestException('Pendaftaran sudah ditutup karena periode sudah berakhir.');
@@ -90,10 +90,7 @@ export class PendaftaranService {
           siswa_id: dto.siswa_id,
           eksul_id: dto.eksul_id,
           status: 'aktif',
-          register_at:
-            new Date().toISOString().split('T')[0] +
-            'T' +
-            new Date().toISOString().split('T')[1].replace('Z', ''),
+          register_at: new Date().toISOString(), // <--- PERBAIKAN DI SINI!
         },
       ])
       .select()
